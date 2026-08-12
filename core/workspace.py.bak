@@ -1,0 +1,44 @@
+"""
+Path sandbox – every file operation must go through safe_path().
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from config.settings import WORKSPACE
+
+
+class PathEscapeError(Exception):
+    """Raised when a path tries to leave the allowed workspace."""
+
+
+def safe_path(path: str | Path | None = ".") -> Path:
+    """
+    Resolve *path* relative to WORKSPACE and ensure it stays inside it.
+    Raises PathEscapeError on any attempt to escape.
+    """
+    if path is None or str(path).strip() == "":
+        path = "."
+
+    raw = str(path).replace("\x00", "")
+    # Disallow absolute paths that are outside (resolve will still check)
+    target = (WORKSPACE / raw).resolve()
+
+    try:
+        target.relative_to(WORKSPACE)
+    except ValueError as exc:
+        raise PathEscapeError(
+            f"Access denied: '{path}' is outside the allowed workspace ({WORKSPACE})"
+        ) from exc
+
+    return target
+
+
+def rel_to_workspace(path: Path) -> str:
+    """Return path relative to workspace as string ('.' for root)."""
+    try:
+        rel = path.relative_to(WORKSPACE)
+        return str(rel) if str(rel) != "." else "."
+    except ValueError:
+        return str(path)
