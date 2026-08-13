@@ -25,3 +25,8 @@ temp/
 *.pem
 *.key
 secrets/
+*.bak
+*_patch_*.py
+.pytest_cache/
+.coverage
+htmlcov/
