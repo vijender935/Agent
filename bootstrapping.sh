@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# bootstrap_agent_termux.sh
+# bootstrapping.sh
 #
 # Termux ke andar Ubuntu (proot-distro) setup karke Local Agent MCP server
 # aur Cloudflare tunnel chalane ke liye poora bootstrap script.
@@ -12,7 +12,7 @@
 #        proot-distro login ubuntu
 #
 #   2) Ab Ubuntu ke andar (root@localhost) is script ko chalao:
-#        bash bootstrap_agent_termux.sh
+#        bash bootstrapping.sh
 #
 #   3) Agent.zip ko pehle se Termux home me copy kar lo:
 #        (Termux side, login se pehle) cp /sdcard/Download/Agent.zip ~/
@@ -22,7 +22,7 @@
 #   - python3, venv, git, curl, cloudflared install
 #   - Agent project ko /root/Agent me copy
 #   - venv banake requirements install
-#   - mcp/ folder ko mcp_local/ rename (naming collision fix)
+#   - mcp/ folder ko mcp_local/ rename (naming collision fix, if needed)
 #   - run_mcp_server.py ka path update
 #   - server.py me DNS-rebinding-protection fix apply
 #   - .env file banata hai (agar exist nahi karti)
@@ -81,7 +81,13 @@ elif [ -f "$SRC_ZIP_DIR/Agent.zip" ]; then
     apt install -y unzip
     mkdir -p /root/_agent_extract
     unzip -o "$SRC_ZIP_DIR/Agent.zip" -d /root/_agent_extract
-    mv /root/_agent_extract/Agent "$DEST_DIR"
+    # Handle both nested Agent/ and flat zip layouts
+    if [ -d /root/_agent_extract/Agent ]; then
+        mv /root/_agent_extract/Agent "$DEST_DIR"
+    else
+        mkdir -p "$DEST_DIR"
+        mv /root/_agent_extract/* "$DEST_DIR"/
+    fi
     rm -rf /root/_agent_extract
     echo "Extracted from Agent.zip"
 else
@@ -121,19 +127,15 @@ echo "=========================================="
 echo " Step 8: DNS rebinding protection fix apply karna"
 echo "=========================================="
 python3 - <<'PYEOF'
-import re
-
 path = "mcp_local/server.py"
 with open(path, "r") as f:
     content = f.read()
 
 if "TransportSecuritySettings" not in content:
-    # import add karo
     content = content.replace(
         "try:\n    from mcp.server.fastmcp import FastMCP\nexcept ImportError:\n    try:\n        from mcp.server import FastMCP  # type: ignore\n",
         "try:\n    from mcp.server.fastmcp import FastMCP\n    from mcp.server.transport_security import TransportSecuritySettings\nexcept ImportError:\n    try:\n        from mcp.server import FastMCP  # type: ignore\n        from mcp.server.transport_security import TransportSecuritySettings\n",
     )
-    # FastMCP(...) me transport_security add karo
     content = content.replace(
         '        "Prefer relative paths."\n    ),\n)',
         '        "Prefer relative paths."\n    ),\n    transport_security=TransportSecuritySettings(\n        enable_dns_rebinding_protection=False,\n    ),\n)',
@@ -161,7 +163,7 @@ MAX_STEPS=12
 AUDIT_LOG_PATH=.agent_audit.jsonl
 EOF
     echo ".env created. AGENT_API_TOKEN = ${RANDOM_TOKEN}"
-    echo "IMPORTANT: Ye token save kar lo, Grok Connector setup me chahiye hoga."
+    echo "IMPORTANT: Ye token save kar lo."
 else
     echo ".env already exists, skip."
 fi
@@ -177,5 +179,4 @@ echo ""
 echo "  Terminal 2 (naya Termux session -> proot-distro login ubuntu):"
 echo "    cloudflared tunnel --url http://localhost:8000"
 echo ""
-echo "  Fir tunnel URL + '/mcp' Grok Custom Connector me daalo,"
-echo "  aur AGENT_API_TOKEN ko Bearer token ke roop me use karo."
+echo "  Fir tunnel URL + '/mcp' Grok Custom Connector me daalo."
