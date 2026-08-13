@@ -28,7 +28,7 @@ Local-Agent-MCP/
 ├── run_mcp_server.py     ← Grok Custom Connector ke liye
 ├── run_agent.py          ← Local agent
 ├── start_for_grok.sh
-└── bootstraping.sh       # Termux/Ubuntu proot bootstrap helper
+└── bootstrapping.sh      # Termux/Ubuntu proot bootstrap helper
 ```
 
 **Design goals**
