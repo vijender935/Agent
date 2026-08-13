@@ -10,23 +10,25 @@ Optional: local Grok agent (xAI API) same tools use karta hai.
 
 ---
 
-## Architecture (revised)
+## Architecture
 
 ```
-my-agent-revised/
+Local-Agent-MCP/
 ├── core/                 # Domain logic (model-agnostic)
-│   ├── workspace.py      # Path sandbox
+│   ├── workspace.py      # Path sandbox (multi-root support)
 │   ├── safety.py         # Risky command detection
-│   └── tools/            # filesystem + shell + registry
+│   └── tools/            # filesystem + shell + clipboard + registry
 ├── security/             # Auth, confirmation, audit log
-├── mcp/                  # MCP server (primary interface)
+├── mcp_local/            # MCP server (named to avoid shadowing `mcp` package)
+│   └── server.py
 ├── agent/                # Local Grok agent (optional)
 │   ├── loop.py
 │   └── providers/grok.py
 ├── config/settings.py
 ├── run_mcp_server.py     ← Grok Custom Connector ke liye
 ├── run_agent.py          ← Local agent
-└── start_for_grok.sh
+├── start_for_grok.sh
+└── bootstraping.sh       # Termux/Ubuntu proot bootstrap helper
 ```
 
 **Design goals**
@@ -34,6 +36,7 @@ my-agent-revised/
 - Security by default (token, confirmation, audit)
 - Clear separation of concerns
 - Tools model-agnostic
+- Multi-root workspace support (`AGENT_EXTRA_ROOTS`)
 
 ---
 
@@ -42,7 +45,7 @@ my-agent-revised/
 ### 1. Setup
 
 ```bash
-cd my-agent-revised
+cd Local-Agent-MCP
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -52,6 +55,8 @@ cp .env.example .env               # optional edits
 Workspace fix (optional):
 ```bash
 export AGENT_WORKSPACE=/path/to/your/folder
+# Optional extra roots (colon-separated):
+# export AGENT_EXTRA_ROOTS=/sdcard/Download:/sdcard/DCIM
 ```
 
 ### 2. MCP Server
@@ -91,20 +96,19 @@ create hello.txt with content "Hello from Grok"
 | Feature | Default | Env |
 |---------|---------|-----|
 | Path sandbox | Always on | — |
-| Bearer token auth | Off (dev) | `AGENT_API_TOKEN=...` |
+| Bearer token auth | Off (hard-disabled for Grok UI) | `AGENT_API_TOKEN=...` |
 | Local confirmation for delete / risky cmds | On | `REQUIRE_CONFIRMATION=true` |
 | Block destructive tools for remote MCP | Off | `REQUIRE_CONFIRMATION_REMOTE=true` |
 | Audit log (JSONL) | On | `AUDIT_LOG_PATH=.agent_audit.jsonl` |
 
 **Production tips**
 - Tunnel short time / trusted network only
-- Set a strong `AGENT_API_TOKEN`
 - Prefer `REQUIRE_CONFIRMATION_REMOTE=true` agar aap delete/risky commands remote se nahi chalana chahte
 - Audit log check karte raho
 
-> Note: FastMCP streamable-http par full middleware auth har version mein easy nahi hota.  
-> Token env set karo aur jab possible ho reverse proxy (Caddy/nginx) se `Authorization` enforce karo.  
-> Remote destructive actions ke liye `REQUIRE_CONFIRMATION_REMOTE` use karo.
+> Note: Grok Custom Connector UI currently only supports OAuth.  
+> Plain Bearer auth is hard-disabled in the server so the connector can connect without showing the OAuth form.  
+> For stronger protection use a reverse proxy or keep the tunnel private.
 
 ---
 
@@ -121,9 +125,11 @@ create hello.txt with content "Hello from Grok"
 | `move_file` | Move / rename |
 | `delete_path` | Delete file or folder |
 | `run_command` | Shell command in workspace |
+| `get_clipboard` | Read Android/Termux clipboard |
+| `set_clipboard` | Write to Android/Termux clipboard |
 | `agent_status` | Status + workspace info |
 
-Sab tools workspace ke andar sandboxed hain.
+Sab tools allowed roots ke andar sandboxed hain.
 
 ---
 
@@ -145,6 +151,7 @@ Yeh multi-step tool loop chalata hai (confirmation + audit included).
 
 ```bash
 AGENT_WORKSPACE=...
+AGENT_EXTRA_ROOTS=/sdcard/Download:/sdcard/DCIM   # optional
 AGENT_API_TOKEN=...
 REQUIRE_CONFIRMATION=true
 REQUIRE_CONFIRMATION_REMOTE=false
@@ -161,7 +168,7 @@ AUDIT_LOG_PATH=.agent_audit.jsonl
 
 | Problem | Fix |
 |---------|-----|
-| Grok tools nahi dikha raha | URL end mein `/mcp` try karo; server + tunnel dono running?
+| Grok tools nahi dikha raha | URL end mein `/mcp` try karo; server + tunnel dono running? |
 | Connection failed | Port / tunnel check karo |
 | Import error | Project root se chalao + `pip install -r requirements.txt` |
 | XAI_API_KEY error | Local agent ke liye `.env` mein key daalo |
