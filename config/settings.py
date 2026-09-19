@@ -15,7 +15,7 @@ def _env_int(key: str, default: int) -> int:
         return default
 
 _raw_ws = _env("AGENT_WORKSPACE", "/app/workspace")
-WORKSPACE = Path(_raw_ws).expanduser().resolve()
+WORKSPACE = Path(_raw_ws).expanduser().resolve() if _raw_ws else (Path.cwd() / "workspace").resolve()
 WORKSPACE.mkdir(parents=True, exist_ok=True)
 
 _extra_raw = _env("AGENT_EXTRA_ROOTS")
