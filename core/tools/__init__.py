@@ -4,7 +4,6 @@ Tool registry – single place that maps names to callables + schemas.
 
 from __future__ import annotations
 
-import inspect
 from typing import Any, Callable
 
 from core.tools import filesystem, shell
@@ -21,7 +20,6 @@ TOOL_MAP: dict[str, Callable[..., dict[str, Any]]] = {
     "run_command": shell.run_command,
 }
 
-# OpenAI / xAI compatible function schemas
 TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
@@ -165,3 +163,22 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             },
         },
     },
+]
+
+def execute_tool(name: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Execute a registered tool with validated keyword arguments."""
+    if name not in TOOL_MAP:
+        return {"success": False, "error": f"Unknown tool: {name}"}
+
+    fn = TOOL_MAP[name]
+    kwargs = dict(args or {})
+    try:
+        return fn(**kwargs)
+    except TypeError as exc:
+        return {"success": False, "error": f"Invalid arguments for {name}: {exc}"}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+def tool_names() -> list[str]:
+    """Return the names of all registered tools."""
+    return list(TOOL_MAP.keys())
