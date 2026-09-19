@@ -7,7 +7,7 @@ from __future__ import annotations
 import inspect
 from typing import Any, Callable
 
-from core.tools import clipboard, filesystem, shell
+from core.tools import filesystem, shell
 
 TOOL_MAP: dict[str, Callable[..., dict[str, Any]]] = {
     "list_files": filesystem.list_files,
@@ -19,8 +19,6 @@ TOOL_MAP: dict[str, Callable[..., dict[str, Any]]] = {
     "move_file": filesystem.move_file,
     "delete_path": filesystem.delete_path,
     "run_command": shell.run_command,
-    "get_clipboard": clipboard.get_clipboard,
-    "set_clipboard": clipboard.set_clipboard,
 }
 
 # OpenAI / xAI compatible function schemas
@@ -167,53 +165,3 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             },
         },
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_clipboard",
-            "description": "Read the current Android/Termux clipboard content.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "set_clipboard",
-            "description": "Write text to the Android/Termux clipboard.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "text": {
-                        "type": "string",
-                        "description": "Text to put on the clipboard",
-                    }
-                },
-                "required": ["text"],
-            },
-        },
-    },
-]
-
-
-def execute_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
-    """Dispatch a tool call and always return a structured dict."""
-    func = TOOL_MAP.get(name)
-    if func is None:
-        return {"success": False, "error": f"Unknown tool: {name}"}
-
-    try:
-        sig = inspect.signature(func)
-        accepted = set(sig.parameters.keys())
-        clean_args = {k: v for k, v in args.items() if k in accepted}
-        return func(**clean_args)
-    except TypeError as e:
-        return {"success": False, "error": f"Invalid arguments for {name}: {e}"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-def tool_names() -> list[str]:
-    return list(TOOL_MAP.keys())
